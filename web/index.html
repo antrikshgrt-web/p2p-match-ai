@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>P2P Match AI — Invoice Verification Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14202b; --ink-soft:#4a5b68;
+  --paper:#eef1f0; --panel:#ffffff; --rule:#ced6d8; --rule-soft:#e3e9ea;
+  --steel:#1b4d7a; --steel-soft:#e7eef5;
+  --clear:#1f6f4a; --clear-soft:#e4f0e9;
+  --hold:#9a5500; --hold-soft:#fbeedd;
+  --stop:#a3231e; --stop-soft:#fae9e8;
+  --shadow:0 1px 0 rgba(20,32,43,.06);
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e7edf0; --ink-soft:#9fb0bb;
+    --paper:#0f171d; --panel:#16212a; --rule:#2c3a45; --rule-soft:#222e38;
+    --steel:#79b3e6; --steel-soft:#162836;
+    --clear:#63c093; --clear-soft:#132a20;
+    --hold:#e0a25c; --hold-soft:#2c2114;
+    --stop:#e88a85; --stop-soft:#2e1816;
+    --shadow:0 1px 0 rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e7edf0; --ink-soft:#9fb0bb;
+  --paper:#0f171d; --panel:#16212a; --rule:#2c3a45; --rule-soft:#222e38;
+  --steel:#79b3e6; --steel-soft:#162836;
+  --clear:#63c093; --clear-soft:#132a20;
+  --hold:#e0a25c; --hold-soft:#2c2114;
+  --stop:#e88a85; --stop-soft:#2e1816;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+  font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{margin:0; font-weight:600; letter-spacing:-.01em}
+button{font:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--steel); outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
+
+/* ---------- masthead ---------- */
+.masthead{
+  background:var(--panel); border-bottom:1px solid var(--rule);
+  padding:14px 20px; display:flex; flex-wrap:wrap; gap:14px; align-items:baseline;
+}
+.masthead h1{font-size:19px}
+.masthead .sub{color:var(--ink-soft); font-size:13.5px}
+.status{
+  margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:12px;
+  color:var(--ink-soft); display:flex; gap:8px; align-items:center;
+}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ink-soft)}
+.dot.live{background:var(--clear)} .dot.demo{background:var(--hold)}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex; gap:2px; padding:0 20px; background:var(--panel); border-bottom:1px solid var(--rule)}
+.tab{
+  background:none; border:none; border-bottom:2px solid transparent;
+  padding:10px 14px; color:var(--ink-soft); font-weight:500;
+}
+.tab[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--steel)}
+
+/* ---------- layout ---------- */
+.workspace{display:grid; grid-template-columns:290px minmax(0,1fr); gap:1px; background:var(--rule-soft); min-height:60vh}
+.queue,.stage{background:var(--paper); padding:18px 20px 40px}
+@media (max-width:880px){ .workspace{grid-template-columns:1fr} }
+
+.panel{background:var(--panel); border:1px solid var(--rule); border-radius:3px; box-shadow:var(--shadow); margin-bottom:16px}
+.panel > h3{padding:11px 14px; border-bottom:1px solid var(--rule-soft); font-size:13px; color:var(--ink-soft); font-weight:600}
+.panel .body{padding:14px}
+
+/* ---------- queue ---------- */
+.qgroup{font-size:11.5px; color:var(--ink-soft); margin:14px 0 6px; font-weight:600}
+.qgroup:first-child{margin-top:0}
+.qitem{
+  display:block; width:100%; text-align:left; background:var(--panel);
+  border:1px solid var(--rule); border-left:3px solid var(--rule);
+  border-radius:2px; padding:8px 10px; margin-bottom:5px; color:var(--ink);
+}
+.qitem:hover{border-color:var(--steel)}
+.qitem[aria-pressed="true"]{border-left-color:var(--steel); background:var(--steel-soft)}
+.qitem .id{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-soft)}
+.qitem .lbl{display:block; font-size:13.5px}
+
+/* ---------- document ---------- */
+textarea{
+  width:100%; min-height:210px; resize:vertical; padding:12px;
+  font-family:"IBM Plex Mono",monospace; font-size:12.5px; line-height:1.6;
+  color:var(--ink); background:var(--paper);
+  border:1px solid var(--rule); border-radius:2px;
+}
+.actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; align-items:center}
+.btn{
+  border:1px solid var(--steel); background:var(--steel); color:#fff;
+  padding:8px 15px; border-radius:2px; font-weight:500;
+}
+.btn.ghost{background:transparent; color:var(--steel)}
+.btn:disabled{opacity:.5; cursor:not-allowed}
+
+/* ---------- verdict stamp: the one loud element ---------- */
+.stamp{
+  border:2px solid currentColor; border-radius:3px; padding:16px 18px;
+  display:flex; flex-wrap:wrap; gap:6px 24px; align-items:baseline; margin-bottom:16px;
+}
+.stamp .verdict{font-size:clamp(22px,4vw,34px); font-weight:700; letter-spacing:-.02em; line-height:1.1}
+.stamp .rec{font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600}
+.stamp .meta{margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:12px; opacity:.85}
+.stamp.clean{color:var(--clear); background:var(--clear-soft)}
+.stamp.hold{color:var(--hold); background:var(--hold-soft)}
+.stamp.stop{color:var(--stop); background:var(--stop-soft)}
+.narrative{color:var(--ink); font-size:14.5px; max-width:74ch; margin:0}
+
+/* ---------- tables ---------- */
+table{width:100%; border-collapse:collapse; font-size:13px}
+th,td{padding:7px 10px; text-align:left; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+th{font-size:11.5px; color:var(--ink-soft); font-weight:600}
+td.n,th.n{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+.kv{display:grid; grid-template-columns:auto 1fr; gap:4px 16px; font-size:13.5px}
+.kv dt{color:var(--ink-soft)}
+.kv dd{margin:0; font-family:"IBM Plex Mono",monospace}
+
+.chip{display:inline-block; padding:1px 7px; border-radius:2px; font-size:11.5px; font-family:"IBM Plex Mono",monospace}
+.chip.ok{background:var(--clear-soft); color:var(--clear)}
+.chip.warn{background:var(--hold-soft); color:var(--hold)}
+.chip.bad{background:var(--stop-soft); color:var(--stop)}
+
+.finding{border-left:3px solid var(--rule); padding:9px 0 9px 12px; margin-bottom:10px}
+.finding.BLOCKER{border-left-color:var(--stop)}
+.finding.WARNING{border-left-color:var(--hold)}
+.finding.INFO{border-left-color:var(--steel)}
+.finding .code{font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-soft)}
+.finding p{margin:2px 0 4px; font-size:14px; max-width:74ch}
+.finding .ev{font-size:12px; color:var(--ink-soft)}
+
+/* ---------- decision ---------- */
+.decide{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px}
+.dbtn{border:1px solid var(--rule); background:var(--panel); color:var(--ink); padding:8px 13px; border-radius:2px}
+.dbtn:hover{border-color:currentColor}
+.dbtn.confirm{color:var(--clear)} .dbtn.hold{color:var(--hold)} .dbtn.escalate{color:var(--stop)}
+input[type=text]{
+  width:100%; padding:8px 10px; border:1px solid var(--rule); border-radius:2px;
+  background:var(--paper); color:var(--ink); font:inherit; font-size:13.5px;
+}
+.note{font-size:12.5px; color:var(--ink-soft); max-width:74ch}
+.empty{color:var(--ink-soft); font-size:14px; max-width:60ch}
+.banner{padding:10px 14px; border:1px solid var(--rule); border-left:3px solid var(--steel);
+  background:var(--panel); border-radius:2px; font-size:13.5px; margin-bottom:16px}
+.pass{color:var(--clear); font-weight:600}
+.fail{color:var(--stop); font-weight:600}
+.hidden{display:none}
+footer{padding:18px 20px 30px; color:var(--ink-soft); font-size:12.5px; border-top:1px solid var(--rule)}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <h1>P2P Match AI</h1>
+  <span class="sub">Invoice verification and exception triage &middot; AP review console</span>
+  <span class="status"><span class="dot" id="modeDot"></span><span id="modeText">checking backend…</span></span>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-view="verify">Verify an invoice</button>
+  <button class="tab" role="tab" aria-selected="false" data-view="evaluate">Test results</button>
+  <button class="tab" role="tab" aria-selected="false" data-view="audit">Audit trail</button>
+  <button class="tab" role="tab" aria-selected="false" data-view="reference">PO &amp; GRN data</button>
+</nav>
+
+<!-- ============ VERIFY ============ -->
+<section id="view-verify" class="workspace">
+  <aside class="queue">
+    <div class="panel">
+      <h3>Incoming documents</h3>
+      <div class="body" id="queue"></div>
+    </div>
+    <p class="note">All vendors, GST numbers, materials and amounts here are fictional test data.</p>
+  </aside>
+
+  <main class="stage">
+    <div class="panel">
+      <h3>Vendor invoice as received</h3>
+      <div class="body">
+        <label for="doc" class="note">Edit any line to test how the agent reacts.</label>
+        <textarea id="doc" spellcheck="false" aria-label="Vendor invoice document"></textarea>
+        <div class="actions">
+          <button class="btn" id="runBtn">Run verification</button>
+          <button class="btn ghost" id="resetBtn">Clear session</button>
+          <span class="note" id="hint">Pick a document on the left, or paste your own.</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="result" class="hidden"></div>
+  </main>
+</section>
+
+<!-- ============ EVALUATE ============ -->
+<section id="view-evaluate" class="stage hidden">
+  <div class="banner">Runs all 13 labelled test cases against the matching engine and compares each verdict with the expected outcome. Duplicate detection needs the cases to run in order, so the harness uses a fresh ledger each time.</div>
+  <button class="btn" id="evalBtn">Run all test cases</button>
+  <div id="evalOut" style="margin-top:16px"></div>
+</section>
+
+<!-- ============ AUDIT ============ -->
+<section id="view-audit" class="stage hidden">
+  <div class="banner">Every recommendation the agent makes is written here before a human sees it, and the reviewer's decision is appended to the same trail. Rows are never edited or removed.</div>
+  <div id="auditOut"></div>
+</section>
+
+<!-- ============ REFERENCE ============ -->
+<section id="view-reference" class="stage hidden">
+  <div class="banner">Stand-in for the SAP extract: purchase orders as viewed in ME23N and goods receipts as posted through MIGO. The agent reads this data; it never writes to it.</div>
+  <div id="refOut"></div>
+</section>
+
+<footer>
+  P2P Match AI recommends; the AP executive decides. No invoice reaches SAP parking without a human confirmation.
+</footer>
+
+<script>
+/* ==================================================================
+   Synthetic SAP data — identical to MockSapRepository.java
+   ================================================================== */
+const VENDORS = [
+  {code:"V-1001", name:"ABC Textiles Pvt. Ltd.",     gstin:"08ABCDE1234F1Z5", state:"Rajasthan"},
+  {code:"V-1002", name:"Kota Chemicals & Solvents",  gstin:"08KOTCH5678G2Z1", state:"Rajasthan"},
+  {code:"V-1003", name:"Shree Packaging Industries", gstin:"24SHRPK9012H3Z9", state:"Gujarat"}
+];
+const POS = [
+  {poNumber:"4500123456", vendorCode:"V-1001", currency:"INR", taxRatePct:18, lines:[
+    {lineNo:10, materialCode:"MAT-1001", description:"Cotton Yarn 40s", uom:"KG", qty:1200, unitPrice:145.50},
+    {lineNo:20, materialCode:"MAT-1002", description:"Viscose Staple Fibre", uom:"KG", qty:500, unitPrice:98.00}]},
+  {poNumber:"4500123457", vendorCode:"V-1002", currency:"INR", taxRatePct:18, lines:[
+    {lineNo:10, materialCode:"MAT-2001", description:"Caustic Soda Lye", uom:"KG", qty:5000, unitPrice:32.40}]},
+  {poNumber:"4500123458", vendorCode:"V-1003", currency:"INR", taxRatePct:12, lines:[
+    {lineNo:10, materialCode:"MAT-3001", description:"Corrugated Box 5-ply", uom:"PCS", qty:2000, unitPrice:24.00}]},
+  {poNumber:"4500123459", vendorCode:"V-1001", currency:"INR", taxRatePct:18, lines:[
+    {lineNo:10, materialCode:"MAT-1003", description:"Polyester Tow", uom:"KG", qty:800, unitPrice:112.25}]}
+];
+const GRNS = [
+  {grnNumber:"5000987001", poNumber:"4500123456", postingDate:"2026-08-10", lines:[
+    {poLineNo:10, materialCode:"MAT-1001", uom:"KG", qtyReceived:1200},
+    {poLineNo:20, materialCode:"MAT-1002", uom:"KG", qtyReceived:500}]},
+  {grnNumber:"5000987002", poNumber:"4500123457", postingDate:"2026-08-11", lines:[
+    {poLineNo:10, materialCode:"MAT-2001", uom:"KG", qtyReceived:5000}]},
+  {grnNumber:"5000987003", poNumber:"4500123458", postingDate:"2026-08-12", lines:[
+    {poLineNo:10, materialCode:"MAT-3001", uom:"PCS", qtyReceived:1200}]},
+  {grnNumber:"5000987004", poNumber:"4500123459", postingDate:"2026-08-13", lines:[
+    {poLineNo:10, materialCode:"MAT-1003", uom:"KG", qtyReceived:800}]}
+];
+const doc = (o) => Object.entries(o).map(([k,v]) => `${k}: ${v}`).join("\n");
+const SAMPLES = [
+ {id:"TC01", label:"Clean single-line invoice", category:"Normal", expectedClassification:"CLEAN_MATCH", expectedFindingCode:null, rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0001
+Invoice Date: 2026-08-14
+Vendor: Kota Chemicals & Solvents
+GSTIN: 08KOTCH5678G2Z1
+PO Reference: 4500123457
+Currency: INR
+Tax Rate: 18
+Line: MAT-2001 | Caustic Soda Lye | KG | 5000 | 32.40
+Total: 191160.00
+Scan Confidence: 0.97`},
+ {id:"TC02", label:"Clean multi-line invoice", category:"Normal", expectedClassification:"CLEAN_MATCH", expectedFindingCode:null, rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0002
+Invoice Date: 2026-08-14
+Vendor: ABC Textiles Pvt. Ltd.
+GSTIN: 08ABCDE1234F1Z5
+PO Reference: 4500123456
+Currency: INR
+Tax Rate: 18
+Line: MAT-1001 | Cotton Yarn 40s | KG | 1200 | 145.50
+Line: MAT-1002 | Viscose Staple Fibre | KG | 500 | 98.00
+Total: 263848.00
+Scan Confidence: 0.96`},
+ {id:"TC03", label:"Receipt quantity equals PO", category:"Normal", expectedClassification:"CLEAN_MATCH", expectedFindingCode:null, rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0003
+Invoice Date: 2026-08-15
+Vendor: ABC Textiles Pvt. Ltd.
+GSTIN: 08ABCDE1234F1Z5
+PO Reference: 4500123459
+Currency: INR
+Tax Rate: 18
+Line: MAT-1003 | Polyester Tow | KG | 800 | 112.25
+Total: 105964.00
+Scan Confidence: 0.98`},
+ {id:"TC04", label:"Part delivery, full invoice", category:"Edge", expectedClassification:"EXCEPTION", expectedFindingCode:"PARTIAL_GRN", rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0004
+Invoice Date: 2026-08-15
+Vendor: Shree Packaging Industries
+GSTIN: 24SHRPK9012H3Z9
+PO Reference: 4500123458
+Currency: INR
+Tax Rate: 12
+Line: MAT-3001 | Corrugated Box 5-ply | PCS | 2000 | 24.00
+Total: 53760.00
+Scan Confidence: 0.95`},
+ {id:"TC05", label:"Boxes invoiced against pieces", category:"Edge", expectedClassification:"EXCEPTION", expectedFindingCode:"UOM_MISMATCH", rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0005
+Invoice Date: 2026-08-16
+Vendor: Shree Packaging Industries
+GSTIN: 24SHRPK9012H3Z9
+PO Reference: 4500123458
+Currency: INR
+Tax Rate: 12
+Line: MAT-3001 | Corrugated Box 5-ply | BOX | 100 | 480.00
+Total: 53760.00
+Scan Confidence: 0.94`},
+ {id:"TC06", label:"Rounding difference of a few rupees", category:"Edge", expectedClassification:"CLEAN_MATCH", expectedFindingCode:null, rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0006
+Invoice Date: 2026-08-16
+Vendor: Kota Chemicals & Solvents
+GSTIN: 08KOTCH5678G2Z1
+PO Reference: 4500123457
+Currency: INR
+Tax Rate: 18
+Line: MAT-2001 | Caustic Soda Lye | KG | 5000 | 32.4004
+Total: 191162.36
+Scan Confidence: 0.97`},
+ {id:"TC07", label:"Same invoice submitted twice", category:"Failure or misuse", expectedClassification:"EXCEPTION", expectedFindingCode:"DUPLICATE_INVOICE", rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0001
+Invoice Date: 2026-08-14
+Vendor: Kota Chemicals & Solvents
+GSTIN: 08KOTCH5678G2Z1
+PO Reference: 4500123457
+Currency: INR
+Tax Rate: 18
+Line: MAT-2001 | Caustic Soda Lye | KG | 5000 | 32.40
+Total: 191160.00
+Scan Confidence: 0.97`},
+ {id:"TC08", label:"No PO reference printed", category:"Failure or misuse", expectedClassification:"EXCEPTION", expectedFindingCode:"MISSING_PO_REFERENCE", rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0008
+Invoice Date: 2026-08-17
+Vendor: ABC Textiles Pvt. Ltd.
+GSTIN: 08ABCDE1234F1Z5
+Currency: INR
+Tax Rate: 18
+Line: MAT-1001 | Cotton Yarn 40s | KG | 1200 | 145.50
+Total: 206028.00
+Scan Confidence: 0.93`},
+ {id:"TC09", label:"GST number does not match master", category:"Failure or misuse", expectedClassification:"EXCEPTION", expectedFindingCode:"GST_MISMATCH", rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0009
+Invoice Date: 2026-08-17
+Vendor: ABC Textiles Pvt. Ltd.
+GSTIN: 08ZZZZZ9999Z9Z9
+PO Reference: 4500123456
+Currency: INR
+Tax Rate: 18
+Line: MAT-1001 | Cotton Yarn 40s | KG | 1200 | 145.50
+Line: MAT-1002 | Viscose Staple Fibre | KG | 500 | 98.00
+Total: 263848.00
+Scan Confidence: 0.92`},
+ {id:"TC10", label:"Barely legible scan", category:"Failure or misuse", expectedClassification:"EXCEPTION", expectedFindingCode:"LOW_CONFIDENCE_EXTRACTION", rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0010
+Invoice Date: 2026-08-18
+Vendor: ABC Textiles Pvt. Ltd.
+GSTIN: 08ABCDE1234F1Z5
+PO Reference: 4500123456
+Currency: INR
+Tax Rate: 18
+Line: MAT-1001 | Cotton Yarn 40s | KG | 1200 | 145.50
+Line: MAT-1002 | Viscose Staple Fibre | KG | 500 | 98.00
+Total: 263848.00
+Scan Confidence: 0.42`},
+ {id:"TC11", label:"Document carries internal data", category:"Risk and governance", expectedClassification:"CLEAN_MATCH", expectedFindingCode:"NON_INVOICE_FIELD_REJECTED", rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0011
+Invoice Date: 2026-08-18
+Vendor: ABC Textiles Pvt. Ltd.
+GSTIN: 08ABCDE1234F1Z5
+PO Reference: 4500123459
+Currency: INR
+Tax Rate: 18
+Employee Payroll Sheet: attached
+Internal Costing Margin: 14 percent
+Line: MAT-1003 | Polyester Tow | KG | 800 | 112.25
+Total: 105964.00
+Scan Confidence: 0.96`},
+ {id:"TC12", label:"Clean match the reviewer holds", category:"Reviewer behaviour", expectedClassification:"CLEAN_MATCH", expectedFindingCode:null, rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0012
+Invoice Date: 2026-08-19
+Vendor: Kota Chemicals & Solvents
+GSTIN: 08KOTCH5678G2Z1
+PO Reference: 4500123457
+Currency: INR
+Tax Rate: 18
+Line: MAT-2001 | Caustic Soda Lye | KG | 5000 | 32.40
+Total: 191160.00
+Scan Confidence: 0.99`},
+ {id:"TC13", label:"Unit price above PO tolerance", category:"Edge", expectedClassification:"EXCEPTION", expectedFindingCode:"PRICE_VARIANCE", rawText:
+`TAX INVOICE
+Invoice No: INV-2026-0013
+Invoice Date: 2026-08-19
+Vendor: ABC Textiles Pvt. Ltd.
+GSTIN: 08ABCDE1234F1Z5
+PO Reference: 4500123456
+Currency: INR
+Tax Rate: 18
+Line: MAT-1001 | Cotton Yarn 40s | KG | 1200 | 158.00
+Line: MAT-1002 | Viscose Staple Fibre | KG | 500 | 98.00
+Total: 281548.00
+Scan Confidence: 0.95`}
+];
+
+/* ==================================================================
+   Offline engine — mirrors ExtractionService.java + MatchingEngine.java
+   Used when the Java backend is not reachable, so the console can be
+   demonstrated from a single file.
+   ================================================================== */
+const QTY_TOL = 1.0, PRICE_TOL = 2.0, ROUND_TOL = 5.00, MIN_CONF = 0.70;
+const ALLOWED = new Set(["invoice no","invoice number","invoice date","vendor","vendor name",
+  "gstin","gst no","po reference","po no","po number","currency","tax rate","total",
+  "scan confidence","line","tax invoice"]);
+
+function extract(raw){
+  const inv = {invoiceNumber:"", invoiceDate:"", vendorName:"", vendorGstin:"", poReference:"",
+    currency:"INR", taxRatePct:0, lines:[], declaredTotal:0, extractionConfidence:0.95, sourceNote:""};
+  const rejected = [];
+  for (const rawLine of raw.split(/\r?\n/)){
+    const line = rawLine.trim();
+    if (!line) continue;
+    const i = line.indexOf(":");
+    if (i < 0){ if(!ALLOWED.has(line.toLowerCase())) rejected.push(line); continue; }
+    const key = line.slice(0,i).trim().toLowerCase();
+    const val = line.slice(i+1).trim();
+    if (!ALLOWED.has(key)){ rejected.push(line.slice(0,i).trim()); continue; }
+    const num = (s,f)=>{ const c=String(s).replace(/[^0-9.\-]/g,""); const v=parseFloat(c); return isNaN(v)?f:v; };
+    if (key==="invoice no"||key==="invoice number") inv.invoiceNumber = val;
+    else if (key==="invoice date") inv.invoiceDate = val;
+    else if (key==="vendor"||key==="vendor name") inv.vendorName = val;
+    else if (key==="gstin"||key==="gst no") inv.vendorGstin = val;
+    else if (key.startsWith("po ")) inv.poReference = val.replace(/[^A-Za-z0-9]/g,"").replace(/^PO(?=\d+$)/i,"");
+    else if (key==="currency") inv.currency = val;
+    else if (key==="tax rate") inv.taxRatePct = num(val,0);
+    else if (key==="total") inv.declaredTotal = num(val,0);
+    else if (key==="scan confidence") inv.extractionConfidence = num(val,0.95);
+    else if (key==="line"){
+      const p = val.split("|");
+      if (p.length < 5) rejected.push("Unreadable line item");
+      else inv.lines.push({materialCode:p[0].trim(), description:p[1].trim(),
+        uom:p[2].trim().toUpperCase(), qty:num(p[3],-1), unitPrice:num(p[4],-1)});
+    }
+  }
+  if (!inv.invoiceNumber){ inv.invoiceNumber = "UNKNOWN"; inv.extractionConfidence -= 0.20; }
+  if (!inv.lines.length) inv.extractionConfidence -= 0.30;
+  if (!inv.vendorGstin) inv.extractionConfidence -= 0.10;
+  inv.extractionConfidence = Math.max(0, Math.min(1, inv.extractionConfidence));
+  inv.netAmount = inv.lines.reduce((s,l)=>s + l.qty*l.unitPrice, 0);
+  inv.grossAmount = inv.netAmount * (1 + inv.taxRatePct/100);
+  if (rejected.length) inv.sourceNote = "Rejected non-invoice fields: " + rejected.join("; ");
+  return inv;
+}
+
+const pctS = v => v.toFixed(2)+"%";
+const qtyS = v => v.toLocaleString("en-IN",{minimumFractionDigits:2, maximumFractionDigits:2});
+const inrS = v => "INR " + v.toLocaleString("en-IN",{minimumFractionDigits:2, maximumFractionDigits:2});
+const simplify = s => (s||"").toUpperCase().replace(/PVT|PRIVATE|LTD|LIMITED|LLP|INDUSTRIES/g,"").replace(/[^A-Z0-9]/g,"");
+
+function verifyLocal(inv, ledger){
+  const findings = [], lines = [];
+  const add = (code,severity,message,evidence) => findings.push({code,severity,message,evidence});
+
+  if (inv.sourceNote) add("NON_INVOICE_FIELD_REJECTED","INFO",
+    "Fields outside the permitted invoice schema were found in the document and were discarded before matching. They were not stored or sent onward.", inv.sourceNote);
+
+  if (inv.extractionConfidence < MIN_CONF) add("LOW_CONFIDENCE_EXTRACTION","BLOCKER",
+    `Extraction confidence ${pctS(inv.extractionConfidence*100)} is below the ${pctS(MIN_CONF*100)} threshold. Field values are not reliable enough to match automatically.`,
+    "Document-level confidence score");
+
+  const key = inv.invoiceNumber.trim().toUpperCase();
+  const duplicate = ledger.has(key);
+  if (duplicate) add("DUPLICATE_INVOICE","BLOCKER",
+    `Invoice number ${inv.invoiceNumber} has already been verified in this session.`,
+    "Invoice header / processed-invoice ledger");
+
+  const done = (po,grn,expectedTotal) => {
+    const exception = findings.some(f => f.severity==="BLOCKER" || f.severity==="WARNING");
+    const classification = exception ? "EXCEPTION" : "CLEAN_MATCH";
+    const esc = ["DUPLICATE_INVOICE","GST_MISMATCH","MISSING_PO_REFERENCE","PO_NOT_FOUND","LINE_NOT_IN_PO"];
+    const recommendation = !exception ? "CONFIRM"
+      : (findings.some(f => esc.includes(f.code)) ? "ESCALATE" : "HOLD");
+    if (!duplicate) ledger.add(key);
+    const invoiceTotal = inv.grossAmount;
+    return {invoiceNumber:inv.invoiceNumber, poNumber:po?po.poNumber:"", grnNumber:grn?grn.grnNumber:"",
+      classification, recommendation, findings, lines, invoiceTotal, expectedTotal,
+      totalVariance: invoiceTotal - expectedTotal,
+      extractionConfidence: inv.extractionConfidence,
+      narrative: narrate(inv, classification, recommendation, findings)};
+  };
+
+  if (!inv.poReference){
+    add("MISSING_PO_REFERENCE","BLOCKER",
+      "No purchase order reference is present on the invoice. The agent does not guess the PO; the invoice is routed to the AP executive.","Invoice header");
+    return done(null,null,0);
+  }
+  const po = POS.find(p => p.poNumber === inv.poReference);
+  if (!po){
+    add("PO_NOT_FOUND","BLOCKER",`Purchase order ${inv.poReference} does not exist in the PO extract.`,"Invoice header PO reference");
+    return done(null,null,0);
+  }
+  const vendor = VENDORS.find(v => v.code === po.vendorCode);
+  if (vendor){
+    if (vendor.gstin.replace(/\s/g,"").toUpperCase() !== (inv.vendorGstin||"").replace(/\s/g,"").toUpperCase())
+      add("GST_MISMATCH","BLOCKER",
+        `GSTIN on the invoice (${inv.vendorGstin||"not found"}) does not match the vendor master GSTIN (${vendor.gstin}).`,
+        `Invoice header GSTIN vs vendor master ${vendor.code}`);
+    const a = simplify(vendor.name), b = simplify(inv.vendorName);
+    if (a && b && !(a.includes(b) || b.includes(a)))
+      add("VENDOR_NAME_MISMATCH","WARNING",
+        `Vendor name on the invoice (${inv.vendorName}) differs from the PO vendor (${vendor.name}).`,
+        `Invoice header vendor vs PO ${po.poNumber}`);
+  }
+  if (inv.taxRatePct > 0 && Math.abs(inv.taxRatePct - po.taxRatePct) > 0.001)
+    add("TAX_RATE_MISMATCH","WARNING",
+      `Invoice tax rate ${pctS(inv.taxRatePct)} differs from the PO tax rate ${pctS(po.taxRatePct)}.`,
+      `Invoice header vs PO ${po.poNumber}`);
+
+  const grn = GRNS.find(g => g.poNumber === po.poNumber);
+  if (!grn){
+    add("GRN_NOT_FOUND","BLOCKER",
+      `No goods receipt has been posted against PO ${po.poNumber}. Invoice cannot be three-way matched.`,
+      `MIGO extract for PO ${po.poNumber}`);
+    return done(po,null,0);
+  }
+
+  let expectedNet = 0;
+  for (const l of inv.lines){
+    const poLine = po.lines.find(p => p.materialCode.toUpperCase() === l.materialCode.toUpperCase());
+    if (!poLine){
+      add("LINE_NOT_IN_PO","BLOCKER",
+        `Material ${l.materialCode} is invoiced but does not appear on PO ${po.poNumber}.`,
+        `Invoice line ${l.materialCode}`);
+      lines.push({materialCode:l.materialCode, description:l.description, uom:l.uom, invoiceQty:l.qty,
+        grnQty:0, poQty:0, invoiceUnitPrice:l.unitPrice, poUnitPrice:0,
+        qtyVariancePct:0, priceVariancePct:0, status:"NOT_IN_PO"});
+      expectedNet += l.qty*l.unitPrice;
+      continue;
+    }
+    const grnLine = grn.lines.find(g => g.materialCode.toUpperCase() === l.materialCode.toUpperCase());
+    const grnQty = grnLine ? grnLine.qtyReceived : 0;
+    if (!grnLine){
+      add("NOT_RECEIVED","BLOCKER",
+        `Material ${l.materialCode} is invoiced but no goods receipt line exists for it.`,
+        `PO line ${poLine.lineNo} / GRN ${grn.grnNumber}`);
+      lines.push({materialCode:l.materialCode, description:l.description, uom:l.uom, invoiceQty:l.qty,
+        grnQty:0, poQty:poLine.qty, invoiceUnitPrice:l.unitPrice, poUnitPrice:poLine.unitPrice,
+        qtyVariancePct:0, priceVariancePct:0, status:"NOT_RECEIVED"});
+      continue;
+    }
+    if (l.uom.toUpperCase() !== poLine.uom.toUpperCase()){
+      add("UOM_MISMATCH","BLOCKER",
+        `Invoice unit of measure for ${l.materialCode} is ${l.uom} but the PO and GRN use ${poLine.uom}. Quantity variance was not computed, to avoid a false result.`,
+        `Invoice line ${l.materialCode} / PO line ${poLine.lineNo}`);
+      lines.push({materialCode:l.materialCode, description:l.description, uom:l.uom, invoiceQty:l.qty,
+        grnQty, poQty:poLine.qty, invoiceUnitPrice:l.unitPrice, poUnitPrice:poLine.unitPrice,
+        qtyVariancePct:0, priceVariancePct:0, status:"UOM_MISMATCH"});
+      expectedNet += grnQty * poLine.unitPrice;
+      continue;
+    }
+    const qv = grnQty === 0 ? 100 : ((l.qty - grnQty)/grnQty)*100;
+    const pv = poLine.unitPrice === 0 ? 0 : ((l.unitPrice - poLine.unitPrice)/poLine.unitPrice)*100;
+    let status = "MATCHED";
+    if (grnQty + 1e-9 < poLine.qty){
+      add("PARTIAL_GRN","BLOCKER",
+        `Only ${qtyS(grnQty)} of ${qtyS(poLine.qty)} ${poLine.uom} of ${l.materialCode} has been received. A clean match is withheld until the balance is received or the PO is short-closed.`,
+        `GRN ${grn.grnNumber} line ${grnLine.poLineNo} vs PO line ${poLine.lineNo}`);
+      status = "PARTIAL_GRN";
+    }
+    if (Math.abs(qv) > QTY_TOL){
+      add("QTY_VARIANCE","BLOCKER",
+        `Invoiced quantity for ${l.materialCode} is ${qtyS(l.qty)} ${l.uom} against ${qtyS(grnQty)} received — a variance of ${pctS(qv)} (tolerance ${pctS(QTY_TOL)}).`,
+        `Invoice line ${l.materialCode} vs GRN ${grn.grnNumber}`);
+      if (status === "MATCHED") status = "QTY_VARIANCE";
+    }
+    if (Math.abs(pv) > PRICE_TOL){
+      add("PRICE_VARIANCE","BLOCKER",
+        `Invoiced unit price for ${l.materialCode} is ${inrS(l.unitPrice)} against the PO price ${inrS(poLine.unitPrice)} — a variance of ${pctS(pv)} (tolerance ${pctS(PRICE_TOL)}).`,
+        `Invoice line ${l.materialCode} vs PO line ${poLine.lineNo}`);
+      if (status === "MATCHED") status = "PRICE_VARIANCE";
+    }
+    lines.push({materialCode:l.materialCode, description:l.description, uom:l.uom, invoiceQty:l.qty,
+      grnQty, poQty:poLine.qty, invoiceUnitPrice:l.unitPrice, poUnitPrice:poLine.unitPrice,
+      qtyVariancePct:qv, priceVariancePct:pv, status});
+    expectedNet += grnQty * poLine.unitPrice;
+  }
+
+  const expectedTotal = expectedNet * (1 + po.taxRatePct/100);
+  const invoiceTotal = inv.grossAmount;
+  if (Math.abs(invoiceTotal - expectedTotal) > ROUND_TOL && lines.every(c => c.status === "MATCHED"))
+    add("TOTAL_VARIANCE","WARNING",
+      `Invoice total ${inrS(invoiceTotal)} differs from the expected payable ${inrS(expectedTotal)} by ${inrS(invoiceTotal-expectedTotal)}.`,
+      "Invoice header total vs GRN-priced total");
+  if (inv.declaredTotal > 0 && Math.abs(inv.declaredTotal - invoiceTotal) > ROUND_TOL)
+    add("DECLARED_TOTAL_MISMATCH","WARNING",
+      `The total printed on the invoice (${inrS(inv.declaredTotal)}) does not equal the sum of its own line items (${inrS(invoiceTotal)}).`,
+      "Invoice header total vs invoice line items");
+
+  return done(po, grn, expectedTotal);
+}
+
+function narrate(inv, classification, recommendation, findings){
+  const info = findings.filter(f=>f.severity==="INFO").map(f=>" Note: "+f.message).join("");
+  if (classification === "CLEAN_MATCH")
+    return `Invoice ${inv.invoiceNumber} matches the purchase order and goods receipt on quantity, unit price and tax details within the declared tolerances. Recommended action: confirm and park in SAP (MIR7/FBV2) after your check.` + info;
+  const real = findings.filter(f => f.severity !== "INFO");
+  let s = `Invoice ${inv.invoiceNumber} could not be cleared automatically. `
+    + (real.length === 1 ? "One issue was found" : `${real.length} issues were found`)
+    + " during the three-way match:";
+  real.forEach((f,i) => { s += ` (${i+1}) ${f.message}`; });
+  s += " Recommended action: " + (recommendation === "ESCALATE"
+    ? "escalate to the AP team lead or procurement before any posting is attempted."
+    : "hold the invoice and verify the flagged fields against the physical document and SAP before parking.");
+  s += " This is a recommendation only — the confirm, hold or escalate decision remains with the AP executive.";
+  return s + info;
+}
+
+/* ==================================================================
+   Console wiring
+   ================================================================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let LIVE = false;
+let ledger = new Set();
+let localAudit = [];
+let current = null;
+
+async function detectBackend(){
+  try{
+    const r = await fetch("/api/health");
+    if (!r.ok) throw 0;
+    const h = await r.json();
+    LIVE = true;
+    $("#modeDot").className = "dot live";
+    $("#modeText").textContent = "Java backend connected" + (h.llmNarratives ? " · LLM narratives on" : "");
+  }catch(e){
+    LIVE = false;
+    $("#modeDot").className = "dot demo";
+    $("#modeText").textContent = "Running in the browser (no backend)";
+  }
+}
+
+function buildQueue(){
+  const groups = {};
+  SAMPLES.forEach(s => (groups[s.category] ||= []).push(s));
+  $("#queue").innerHTML = Object.entries(groups).map(([cat, items]) => `
+    <p class="qgroup">${esc(cat)}</p>
+    ${items.map(s => `<button class="qitem" data-id="${s.id}" aria-pressed="false">
+        <span class="id">${s.id}</span><span class="lbl">${esc(s.label)}</span></button>`).join("")}
+  `).join("");
+  $("#queue").querySelectorAll(".qitem").forEach(b => b.addEventListener("click", () => {
+    $("#queue").querySelectorAll(".qitem").forEach(x => x.setAttribute("aria-pressed","false"));
+    b.setAttribute("aria-pressed","true");
+    $("#doc").value = SAMPLES.find(s => s.id === b.dataset.id).rawText;
+    $("#hint").textContent = "Loaded " + b.dataset.id + ". Run the verification when ready.";
+  }));
+}
+
+async function runVerification(){
+  const text = $("#doc").value.trim();
+  if (!text){ $("#hint").textContent = "Paste an invoice or pick one from the list first."; return; }
+  $("#runBtn").disabled = true;
+  try{
+    let extracted, result;
+    if (LIVE){
+      const r = await fetch("/api/verify", {method:"POST",
+        headers:{"Content-Type":"application/x-www-form-urlencoded"},
+        body:"rawText=" + encodeURIComponent(text)});
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+      extracted = data.extracted; result = data.result;
+    } else {
+      extracted = extract(text);
+      result = verifyLocal(extracted, ledger);
+      localAudit.push({timestamp:new Date().toISOString().slice(0,19).replace("T"," "),
+        invoiceNumber:result.invoiceNumber, poNumber:result.poNumber,
+        classification:result.classification, aiRecommendation:result.recommendation,
+        humanDecision:"PENDING", reason:"", user:"system"});
+    }
+    current = result;
+    renderResult(extracted, result);
+  }catch(err){
+    $("#result").classList.remove("hidden");
+    $("#result").innerHTML = `<div class="banner">Verification did not run: ${esc(err.message)}. Check the document format and try again.</div>`;
+  }finally{
+    $("#runBtn").disabled = false;
+  }
+}
+
+function stampClass(r){
+  if (r.classification === "CLEAN_MATCH") return "clean";
+  return r.recommendation === "ESCALATE" ? "stop" : "hold";
+}
+function sevChip(s){ return s==="BLOCKER" ? "bad" : s==="WARNING" ? "warn" : "ok"; }
+function statusChip(s){ return s==="MATCHED" ? "ok" : (s==="PARTIAL_GRN"||s==="UOM_MISMATCH") ? "warn" : "bad"; }
+
+function renderResult(inv, r){
+  const el = $("#result");
+  el.classList.remove("hidden");
+  el.innerHTML = `
+  <div class="stamp ${stampClass(r)}">
+    <span class="verdict">${r.classification === "CLEAN_MATCH" ? "Clean match" : "Exception"}</span>
+    <span class="rec">Recommended: ${esc(r.recommendation)}</span>
+    <span class="meta">${esc(r.invoiceNumber)}${r.poNumber ? " · PO " + esc(r.poNumber) : ""}${r.grnNumber ? " · GRN " + esc(r.grnNumber) : ""}</span>
+  </div>
+
+  <div class="panel"><h3>What the agent found</h3><div class="body">
+    <p class="narrative">${esc(r.narrative)}</p>
+  </div></div>
+
+  <div class="panel"><h3>Fields read from the document</h3><div class="body">
+    <dl class="kv">
+      <dt>Vendor</dt><dd>${esc(inv.vendorName || "not found")}</dd>
+      <dt>GSTIN</dt><dd>${esc(inv.vendorGstin || "not found")}</dd>
+      <dt>PO reference</dt><dd>${esc(inv.poReference || "not found")}</dd>
+      <dt>Invoice date</dt><dd>${esc(inv.invoiceDate || "not found")}</dd>
+      <dt>Tax rate</dt><dd>${Number(inv.taxRatePct).toFixed(2)}%</dd>
+      <dt>Invoice value</dt><dd>${inrS(Number(inv.grossAmount))}</dd>
+      <dt>Expected payable</dt><dd>${inrS(Number(r.expectedTotal))}</dd>
+      <dt>Read confidence</dt><dd>${(Number(r.extractionConfidence)*100).toFixed(0)}%</dd>
+    </dl>
+  </div></div>
+
+  ${r.lines.length ? `<div class="panel"><h3>Three-way comparison</h3><div class="body scroll">
+    <table><thead><tr>
+      <th>Material</th><th class="n">Invoice qty</th><th class="n">Received</th><th class="n">Ordered</th>
+      <th class="n">Invoice rate</th><th class="n">PO rate</th><th class="n">Qty var</th><th class="n">Rate var</th><th>Status</th>
+    </tr></thead><tbody>
+    ${r.lines.map(c => `<tr>
+      <td>${esc(c.materialCode)}<br><span class="note">${esc(c.description||"")}</span></td>
+      <td class="n">${qtyS(c.invoiceQty)} ${esc(c.uom)}</td>
+      <td class="n">${qtyS(c.grnQty)}</td>
+      <td class="n">${qtyS(c.poQty)}</td>
+      <td class="n">${qtyS(c.invoiceUnitPrice)}</td>
+      <td class="n">${qtyS(c.poUnitPrice)}</td>
+      <td class="n">${pctS(c.qtyVariancePct)}</td>
+      <td class="n">${pctS(c.priceVariancePct)}</td>
+      <td><span class="chip ${statusChip(c.status)}">${esc(c.status)}</span></td>
+    </tr>`).join("")}
+    </tbody></table></div></div>` : ""}
+
+  ${r.findings.length ? `<div class="panel"><h3>Evidence behind the verdict</h3><div class="body">
+    ${r.findings.map(f => `<div class="finding ${f.severity}">
+      <span class="code">${esc(f.code)}</span> <span class="chip ${sevChip(f.severity)}">${esc(f.severity)}</span>
+      <p>${esc(f.message)}</p>
+      <div class="ev">Checked against: ${esc(f.evidence)}</div>
+    </div>`).join("")}
+  </div></div>` : ""}
+
+  <div class="panel"><h3>Your decision</h3><div class="body">
+    <div class="decide">
+      <button class="dbtn confirm" data-d="CONFIRM">Confirm and park</button>
+      <button class="dbtn confirm" data-d="APPROVE_OVERRIDE">Approve with override</button>
+      <button class="dbtn hold" data-d="HOLD">Hold</button>
+      <button class="dbtn escalate" data-d="ESCALATE">Escalate</button>
+    </div>
+    <input type="text" id="reason" placeholder="Reason, for the audit trail">
+    <p class="note" id="decisionMsg" style="margin-top:8px">
+      Nothing is posted to SAP from here. Your decision is written to the audit trail next to the agent's recommendation.</p>
+  </div></div>`;
+
+  el.querySelectorAll(".dbtn").forEach(b => b.addEventListener("click", () => recordDecision(b.dataset.d)));
+  el.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+async function recordDecision(decision){
+  if (!current) return;
+  const reason = $("#reason").value.trim();
+  if (LIVE){
+    const r = await fetch("/api/decision", {method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body:`invoiceNumber=${encodeURIComponent(current.invoiceNumber)}&decision=${decision}&reason=${encodeURIComponent(reason)}`});
+    const data = await r.json();
+    $("#decisionMsg").textContent = data.error
+      ? "Decision not recorded: " + data.error
+      : `Recorded ${decision.toLowerCase().replace("_"," ")} for ${current.invoiceNumber}. The agent's verdict is unchanged.`;
+  } else {
+    localAudit.push({timestamp:new Date().toISOString().slice(0,19).replace("T"," "),
+      invoiceNumber:current.invoiceNumber, poNumber:current.poNumber,
+      classification:current.classification, aiRecommendation:current.recommendation,
+      humanDecision:decision, reason, user:"ap.executive"});
+    $("#decisionMsg").textContent =
+      `Recorded ${decision.toLowerCase().replace("_"," ")} for ${current.invoiceNumber}. The agent's verdict is unchanged.`;
+  }
+}
+
+async function runEvaluation(){
+  $("#evalBtn").disabled = true;
+  let payload;
+  if (LIVE){
+    payload = await (await fetch("/api/evaluate", {method:"POST"})).json();
+  } else {
+    const l = new Set(); let passed = 0;
+    const cases = SAMPLES.map((s,i) => {
+      const res = verifyLocal(extract(s.rawText), l);
+      const raised = !s.expectedFindingCode || res.findings.some(f => f.code === s.expectedFindingCode);
+      const ok = res.classification === s.expectedClassification && raised;
+      if (ok) passed++;
+      return {number:i+1, category:s.category, description:s.label,
+        expectedClassification:s.expectedClassification, actualClassification:res.classification,
+        expectedFindingCode:s.expectedFindingCode || "-", findingRaised:raised, passed:ok};
+    });
+    payload = {total:cases.length, passed, passRatePct:(passed*100)/cases.length, cases};
+  }
+  $("#evalOut").innerHTML = `
+    <div class="panel"><h3>${payload.passed} of ${payload.total} cases behaved as expected (${payload.passRatePct.toFixed(1)}%)</h3>
+    <div class="body scroll"><table><thead><tr>
+      <th>#</th><th>Category</th><th>Test case</th><th>Expected</th><th>Actual</th><th>Expected flag</th><th>Result</th>
+    </tr></thead><tbody>
+    ${payload.cases.map(c => `<tr>
+      <td class="n">${c.number}</td><td>${esc(c.category)}</td><td>${esc(c.description)}</td>
+      <td>${esc(c.expectedClassification)}</td><td>${esc(c.actualClassification)}</td>
+      <td>${esc(c.expectedFindingCode)}${c.expectedFindingCode !== "-" ? (c.findingRaised ? " ✓" : " ✗") : ""}</td>
+      <td class="${c.passed ? "pass" : "fail"}">${c.passed ? "pass" : "fail"}</td>
+    </tr>`).join("")}
+    </tbody></table></div></div>`;
+  $("#evalBtn").disabled = false;
+}
+
+async function loadAudit(){
+  let entries, completeness;
+  if (LIVE){
+    const d = await (await fetch("/api/audit")).json();
+    entries = d.entries; completeness = d.completenessPct;
+  } else {
+    entries = localAudit;
+    const decided = entries.filter(e => e.humanDecision !== "PENDING").length;
+    completeness = entries.length ? (decided*100)/entries.length : 100;
+  }
+  $("#auditOut").innerHTML = entries.length ? `
+    <div class="panel"><h3>${entries.length} entries · ${completeness.toFixed(0)}% carry a human decision</h3>
+    <div class="body scroll"><table><thead><tr>
+      <th>Time</th><th>Invoice</th><th>PO</th><th>Agent verdict</th><th>Agent advice</th><th>Human decision</th><th>Reason</th><th>User</th>
+    </tr></thead><tbody>
+    ${entries.map(e => `<tr>
+      <td>${esc(e.timestamp)}</td><td>${esc(e.invoiceNumber)}</td><td>${esc(e.poNumber)}</td>
+      <td>${esc(e.classification)}</td><td>${esc(e.aiRecommendation)}</td>
+      <td>${esc(e.humanDecision)}</td><td>${esc(e.reason)}</td><td>${esc(e.user)}</td>
+    </tr>`).join("")}
+    </tbody></table></div></div>` :
+    `<p class="empty">No entries yet. Verify an invoice and the trail starts here.</p>`;
+}
+
+function loadReference(){
+  $("#refOut").innerHTML = `
+  <div class="panel"><h3>Vendor master</h3><div class="body scroll">
+    <table><thead><tr><th>Code</th><th>Vendor</th><th>GSTIN</th><th>State</th></tr></thead><tbody>
+    ${VENDORS.map(v => `<tr><td>${v.code}</td><td>${esc(v.name)}</td><td>${v.gstin}</td><td>${v.state}</td></tr>`).join("")}
+    </tbody></table></div></div>
+  <div class="panel"><h3>Purchase orders (ME23N)</h3><div class="body scroll">
+    <table><thead><tr><th>PO</th><th>Vendor</th><th class="n">Tax</th><th>Line</th><th>Material</th><th class="n">Qty</th><th>UOM</th><th class="n">Rate</th></tr></thead><tbody>
+    ${POS.flatMap(p => p.lines.map(l => `<tr><td>${p.poNumber}</td><td>${p.vendorCode}</td><td class="n">${p.taxRatePct}%</td>
+      <td class="n">${l.lineNo}</td><td>${l.materialCode} — ${esc(l.description)}</td>
+      <td class="n">${qtyS(l.qty)}</td><td>${l.uom}</td><td class="n">${qtyS(l.unitPrice)}</td></tr>`)).join("")}
+    </tbody></table></div></div>
+  <div class="panel"><h3>Goods receipts (MIGO)</h3><div class="body scroll">
+    <table><thead><tr><th>GRN</th><th>PO</th><th>Posted</th><th>Material</th><th class="n">Received</th><th>UOM</th></tr></thead><tbody>
+    ${GRNS.flatMap(g => g.lines.map(l => `<tr><td>${g.grnNumber}</td><td>${g.poNumber}</td><td>${g.postingDate}</td>
+      <td>${l.materialCode}</td><td class="n">${qtyS(l.qtyReceived)}</td><td>${l.uom}</td></tr>`)).join("")}
+    </tbody></table></div></div>`;
+}
+
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected","false"));
+  t.setAttribute("aria-selected","true");
+  ["verify","evaluate","audit","reference"].forEach(v =>
+    document.getElementById("view-"+v).classList.toggle("hidden", v !== t.dataset.view));
+  if (t.dataset.view === "audit") loadAudit();
+  if (t.dataset.view === "reference") loadReference();
+}));
+
+$("#runBtn").addEventListener("click", runVerification);
+$("#evalBtn").addEventListener("click", runEvaluation);
+$("#resetBtn").addEventListener("click", async () => {
+  ledger = new Set(); current = null;
+  $("#result").classList.add("hidden");
+  if (LIVE) await fetch("/api/reset", {method:"POST"});
+  $("#hint").textContent = "Session cleared. Duplicate detection starts fresh.";
+});
+
+buildQueue();
+detectBackend();
+$("#doc").value = SAMPLES[0].rawText;
+document.querySelector('.qitem[data-id="TC01"]').setAttribute("aria-pressed","true");
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# Compiled output
+out/
+*.class
+
+# Runtime audit trail (generated when you run the app).
+# To keep a sample as test evidence, copy it to docs/sample-audit-log.csv
+audit-log.csv
+
+# Secrets - never commit keys
+.env
+*.key
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+sources.txt
